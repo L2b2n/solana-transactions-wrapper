@@ -2,6 +2,7 @@ import { Connection, PublicKey } from "@solana/web3.js";
 import { Wallet } from "@project-serum/anchor";
 import * as Swapper from "./swapper-helper";
 import { SOLANA_ADDRESS } from "./consts";
+import { ComputeBudgetProgram } from '@solana/web3.js';
 
 export const buyToken = async (
   addressOfTokenIn: string,
@@ -32,11 +33,24 @@ export const buyToken = async (
 
     const walletPublicKey = wallet.publicKey.toString();
     const swapTransaction = await Swapper.getSwapTransaction(
-      quoteResponse,
-      walletPublicKey,
-      true,
-      addressOfTokenIn
-    );
+  quoteResponse,
+  walletPublicKey,
+  true,
+  addressOfTokenIn
+);
+
+// computerbudget fee speed
+swapTransaction.add(
+  ComputeBudgetProgram.setComputeUnitLimit({
+    units: 1000000, // Anpassen je nach Bedarf
+  })
+);
+
+const txid = await Swapper.finalizeTransaction(
+  swapTransaction,
+  wallet,
+  connection
+);
 
     const txid = await Swapper.finalizeTransaction(
       swapTransaction,
