@@ -3,6 +3,7 @@ import { Wallet } from "@project-serum/anchor";
 import * as Swapper from "./swapper-helper";
 import * as WalletInfo from "./walletInfo";
 import { SOLANA_ADDRESS } from "./consts";
+import { ComputeBudgetProgram } from '@solana/web3.js';
 
 /**
  * Sells ALL tokens in wallet for given addressToken
@@ -50,10 +51,23 @@ export const sellToken = async (
 
     const walletPublicKey = wallet.publicKey.toString();
     const swapTransaction = await Swapper.getSwapTransaction(
-      quoteResponse,
-      walletPublicKey,
-      false,
-    );
+  quoteResponse,
+  walletPublicKey,
+  false
+);
+
+// computerbudget speed tx
+swapTransaction.add(
+  ComputeBudgetProgram.setComputeUnitLimit({
+    units: 1000000, // Anpassen je nach Bedarf
+  })
+);
+
+const txid = await Swapper.finalizeTransaction(
+  swapTransaction,
+  wallet,
+  connection
+);
 
     const txid = await Swapper.finalizeTransaction(
       swapTransaction,
