@@ -1,15 +1,19 @@
-import { Connection, PublicKey } from "@solana/web3.js";
 import { Wallet } from "@project-serum/anchor";
-import * as Swapper from "./swapper-helper";
+import {
+  Connection,
+  PublicKey,
+} from "@solana/web3.js";
+
 import { SOLANA_ADDRESS } from "./consts";
-import { ComputeBudgetProgram } from '@solana/web3.js';
+import * as Swapper from "./swapper-helper";
 
 export const buyToken = async (
   addressOfTokenIn: string,
   amountOfTokenOut: number,
   slippage: number,
   connection: Connection,
-  wallet: Wallet
+  wallet: Wallet,
+  computeUnitLimit?: number // Neuer Parameter
 ) => {
   try {
     let mint = await connection.getParsedAccountInfo(
@@ -32,25 +36,14 @@ export const buyToken = async (
     );
 
     const walletPublicKey = wallet.publicKey.toString();
+
     const swapTransaction = await Swapper.getSwapTransaction(
-  quoteResponse,
-  walletPublicKey,
-  true,
-  addressOfTokenIn
-);
-
-// computerbudget fee speed
-swapTransaction.add(
-  ComputeBudgetProgram.setComputeUnitLimit({
-    units: 1000000, // Anpassen je nach Bedarf
-  })
-);
-
-const txid = await Swapper.finalizeTransaction(
-  swapTransaction,
-  wallet,
-  connection
-);
+      quoteResponse,
+      walletPublicKey,
+      true,
+      addressOfTokenIn,
+      computeUnitLimit // Übergeben des Wertes
+    );
 
     const txid = await Swapper.finalizeTransaction(
       swapTransaction,
@@ -59,16 +52,20 @@ const txid = await Swapper.finalizeTransaction(
     );
 
     console.log("Waiting for confirmation... 🕒");
-    
+
     let subscriptionId;
     try {
-      subscriptionId = connection.onSignature(txid, (updatedTxInfo, context) => {
-        if (updatedTxInfo.err) {
-          console.error('Transaction failed:', updatedTxInfo.err);
-        } else {
-          console.log('Transaction confirmed ✅');
-        }
-      }, 'finalized');
+      subscriptionId = connection.onSignature(
+        txid,
+        (updatedTxInfo, context) => {
+          if (updatedTxInfo.err) {
+            console.error('Transaction failed:', updatedTxInfo.err);
+          } else {
+            console.log('Transaction confirmed ✅');
+          }
+        },
+        'finalized'
+      );
     } finally {
       if (subscriptionId) {
         connection.removeSignatureListener(subscriptionId);

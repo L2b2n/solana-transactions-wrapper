@@ -1,6 +1,3 @@
-import { Wallet } from "@project-serum/anchor";
-import { Connection } from "@solana/web3.js";
-
 export type Route = {
   inAmount: string;
   outAmount: string;
@@ -57,6 +54,7 @@ export type buyConfig = {
   ADDRESS_OF_TOKEN_TO_BUY: string;
   AMOUNT_OF_SOLANA_TO_SPEND: number;
   SLIPPAGE: number;
+  computeUnitLimit?: number;
 };
 
 export type sellConfig = {
@@ -66,4 +64,5 @@ export type sellConfig = {
   ADDRESS_OF_TOKEN_TO_SELL: string;
   AMOUNT_OF_TOKEN_TO_SELL?: number;
   SLIPPAGE: number;
+  computeUnitLimit?: number;
 };

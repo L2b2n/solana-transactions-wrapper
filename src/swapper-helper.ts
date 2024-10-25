@@ -1,7 +1,15 @@
-import { Connection, PublicKey, VersionedTransaction } from "@solana/web3.js";
 import fetch from "cross-fetch";
-import { Route, SwapResponse } from "./types";
+
 import { Wallet } from "@project-serum/anchor";
+import {
+  Connection,
+  VersionedTransaction,
+} from "@solana/web3.js";
+
+import {
+  Route,
+  SwapResponse,
+} from "./types";
 
 /**
  * Get quote for the swap
@@ -9,35 +17,44 @@ import { Wallet } from "@project-serum/anchor";
  * @param {string} addressOfTokenIn The token that we are buying
  * @param {number} convertedAmountOfTokenOut The amount of tokens that we are selling
  * @param {number} slippage The slippage percentage
- * @param {boolean} buy If true, it's a buy transaction
- * @returns Promise<QuoteResponse>
+ * @returns Promise<Route>
  */
 export const getQuote = async (
   addressOfTokenOut: string,
   addressOfTokenIn: string,
   convertedAmountOfTokenOut: number,
   slippage: number
-) => {
-  slippage *= 100;
-  const url = `https://quote-api.jup.ag/v6/quote?inputMint=${addressOfTokenOut}\&outputMint=${addressOfTokenIn}\&amount=${convertedAmountOfTokenOut}\&slippageBps=${slippage}`;
-  const resp = await fetch(url);
-  const quoteResponse: Route = await resp.json();
-  return quoteResponse;
+): Promise<Route> => {
+  try {
+    const slippageBps = slippage * 100;
+    const url = `https://quote-api.jup.ag/v6/quote?inputMint=${addressOfTokenOut}&outputMint=${addressOfTokenIn}&amount=${convertedAmountOfTokenOut}&slippageBps=${slippageBps}`;
+    const resp = await fetch(url);
+
+    if (!resp.ok) {
+      const errorText = await resp.text();
+      throw new Error(`Error fetching quote: ${resp.status} ${resp.statusText} ${errorText}`);
+    }
+
+    const quoteResponse: Route = await resp.json();
+    return quoteResponse;
+  } catch (error: any) {
+    throw new Error(`Error fetching quote: ${error.message}`);
+  }
 };
 
 /**
- * Get serialized transactions for the swap
+ * Get serialized transaction for the swap
  * @returns {Promise<string>} swapTransaction
  */
 export const getSwapTransaction = async (
   quoteResponse: Route,
   walletPublicKey: string,
   buy: boolean,
-  addr_mint: string = ""
+  addr_mint: string = "",
+  computeUnitLimit?: number // Neuer Parameter
 ): Promise<string> => {
   try {
-    let body: any;
-    body = {
+    let body: any = {
       quoteResponse,
       userPublicKey: walletPublicKey,
       wrapAndUnwrapSol: true,
@@ -45,6 +62,11 @@ export const getSwapTransaction = async (
       prioritizationFeeLamports: "auto",
       autoMultiplier: 2,
     };
+
+    if (computeUnitLimit) {
+      body.computeUnitLimit = computeUnitLimit;
+    }
+
     const resp = await fetch("https://quote-api.jup.ag/v6/swap", {
       method: "POST",
       headers: {
@@ -52,22 +74,30 @@ export const getSwapTransaction = async (
       },
       body: JSON.stringify(body),
     });
+
+    if (!resp.ok) {
+      const errorText = await resp.text();
+      throw new Error(`Error getting swap transaction: ${resp.status} ${resp.statusText} ${errorText}`);
+    }
+
     const swapResponse: SwapResponse = await resp.json();
+
     return swapResponse.swapTransaction;
   } catch (error: any) {
-    throw new Error(error);
+    throw new Error(`Error getting swap transaction: ${error.message}`);
   }
 };
 
-export const convertToInteger = (amount: number, decimals: number) => {
+export const convertToInteger = (amount: number, decimals: number): number => {
   return Math.floor(amount * 10 ** decimals);
 };
 
 /**
- * @param {*} swapTransaction
- * @param {*} wallet
- * @param {*} connection
- * @returns Promise<string> txid
+ * Finalize and send the transaction
+ * @param {string} swapTransaction Serialized transaction in base64
+ * @param {Wallet} wallet Wallet to sign the transaction
+ * @param {Connection} connection Connection to the Solana network
+ * @returns {Promise<string>} txid Transaction ID
  */
 export const finalizeTransaction = async (
   swapTransaction: string,
@@ -75,11 +105,11 @@ export const finalizeTransaction = async (
   connection: Connection
 ): Promise<string> => {
   try {
-    // deserialize the transaction
+    // Deserialize the transaction
     const swapTransactionBuf = Buffer.from(swapTransaction, "base64");
     let transaction = VersionedTransaction.deserialize(swapTransactionBuf);
 
-    // sign the transaction
+    // Sign the transaction
     transaction.sign([wallet.payer]);
 
     const rawTransaction = transaction.serialize();
@@ -90,7 +120,7 @@ export const finalizeTransaction = async (
     console.log(`Transaction sent with txid: ${txid}`);
     return txid;
   } catch (error: any) {
-    throw new Error(error);
+    throw new Error(`Error finalizing transaction: ${error.message}`);
   }
 };
 
@@ -100,9 +130,9 @@ export const finalizeTransaction = async (
  */
 export const createConnection = (RPC_ENDPOINT: string): Connection => {
   try {
-    const connection = new Connection(RPC_ENDPOINT);
+    const connection = new Connection(RPC_ENDPOINT, "confirmed");
     return connection;
   } catch (error: any) {
-    throw new Error(error);
+    throw new Error(`Error creating connection: ${error.message}`);
   }
 };

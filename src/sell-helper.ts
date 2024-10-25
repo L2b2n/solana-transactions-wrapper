@@ -1,17 +1,13 @@
-import { Connection, PublicKey } from "@solana/web3.js";
 import { Wallet } from "@project-serum/anchor";
+import {
+  Connection,
+  PublicKey,
+} from "@solana/web3.js";
+
+import { SOLANA_ADDRESS } from "./consts";
 import * as Swapper from "./swapper-helper";
 import * as WalletInfo from "./walletInfo";
-import { SOLANA_ADDRESS } from "./consts";
-import { ComputeBudgetProgram } from '@solana/web3.js';
 
-/**
- * Sells ALL tokens in wallet for given addressToken
- * @param {*} addressOfTokenOut 
- * @param {*} slippage 
- * @param {*} connection 
- * @returns TxId
- */
 export const sellToken = async (
   sellAll: boolean = true,
   addressOfTokenOut: string,
@@ -20,14 +16,23 @@ export const sellToken = async (
   wallet: Wallet,
   publicKeyOfWalletToQuery: string,
   amountOfTokenToSell: number | undefined,
+  computeUnitLimit?: number // Neuer Parameter
 ) => {
   try {
-    sellAll ? amountOfTokenToSell = await WalletInfo.getBalanceOfToken(publicKeyOfWalletToQuery, addressOfTokenOut, connection) : amountOfTokenToSell; 
-    
-    if (!amountOfTokenToSell) {
+    if (sellAll) {
+      amountOfTokenToSell = await WalletInfo.getBalanceOfToken(
+        publicKeyOfWalletToQuery,
+        addressOfTokenOut,
+        connection
+      );
+    }
+
+    if (!amountOfTokenToSell || amountOfTokenToSell <= 0) {
       throw new Error("No tokens to sell");
     }
+
     console.log(`Selling ${amountOfTokenToSell} of ${addressOfTokenOut}`);
+
     let mint = await connection.getParsedAccountInfo(
       new PublicKey(addressOfTokenOut)
     );
@@ -50,24 +55,14 @@ export const sellToken = async (
     );
 
     const walletPublicKey = wallet.publicKey.toString();
+
     const swapTransaction = await Swapper.getSwapTransaction(
-  quoteResponse,
-  walletPublicKey,
-  false
-);
-
-// computerbudget speed tx
-swapTransaction.add(
-  ComputeBudgetProgram.setComputeUnitLimit({
-    units: 1000000, // Anpassen je nach Bedarf
-  })
-);
-
-const txid = await Swapper.finalizeTransaction(
-  swapTransaction,
-  wallet,
-  connection
-);
+      quoteResponse,
+      walletPublicKey,
+      false,
+      SOLANA_ADDRESS,
+      computeUnitLimit // Übergeben des Wertes
+    );
 
     const txid = await Swapper.finalizeTransaction(
       swapTransaction,
@@ -76,16 +71,20 @@ const txid = await Swapper.finalizeTransaction(
     );
 
     console.log("Waiting for confirmation... 🕒");
-    
+
     let subscriptionId;
     try {
-      subscriptionId = connection.onSignature(txid, (updatedTxInfo, context) => {
-        if (updatedTxInfo.err) {
-          console.error('Transaction failed:', updatedTxInfo.err);
-        } else {
-          console.log('Transaction confirmed ✅');
-        }
-      }, 'finalized');
+      subscriptionId = connection.onSignature(
+        txid,
+        (updatedTxInfo, context) => {
+          if (updatedTxInfo.err) {
+            console.error('Transaction failed:', updatedTxInfo.err);
+          } else {
+            console.log('Transaction confirmed ✅');
+          }
+        },
+        'finalized'
+      );
     } finally {
       if (subscriptionId) {
         connection.removeSignatureListener(subscriptionId);
@@ -108,6 +107,6 @@ const txid = await Swapper.finalizeTransaction(
       }
       throw new Error("Transaction expired");
     }
-    throw new Error(error);
+    throw new Error(error.message);
   }
 };
