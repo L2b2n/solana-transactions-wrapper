@@ -6,7 +6,7 @@
 
 <p>Install the package with npm:</p>
 
-<pre><code>npm install solana-transactions-wrapper</code></pre>
+<pre><code>npm install solana-transactions-wrapper-cpb</code></pre>
 
 <h2>Usage</h2>
 
