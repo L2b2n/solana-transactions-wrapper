@@ -1,6 +1,6 @@
 {
   "name": "solana-transactions-wrapper-cpb",
-  "version": "3.0.1",
+  "version": "1.0.0",
   "description": "Handy tool to execute buy/sell transactions on the SOLANA chain",
   "main": "dist/index.js",
   "types": "dist/types.d.ts",
