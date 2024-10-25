@@ -1,5 +1,5 @@
 {
-  "name": "solana-transactions-wrapper",
+  "name": "solana-transactions-wrapper-cpb",
   "version": "3.0.1",
   "description": "Handy tool to execute buy/sell transactions on the SOLANA chain",
   "main": "dist/index.js",
